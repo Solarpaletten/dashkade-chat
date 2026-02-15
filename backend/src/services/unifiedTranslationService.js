@@ -12,16 +12,8 @@ class UnifiedTranslationService {
 
     // Поддерживаемые языки
     this.supportedLanguages = {
-      'EN': { name: 'English', flag: '🇺🇸', code: 'en' },
-      'RU': { name: 'Русский', flag: '🇷🇺', code: 'ru' },
-      'DE': { name: 'Deutsch', flag: '🇩🇪', code: 'de' },
-      'FR': { name: 'Français', flag: '🇫🇷', code: 'fr' },
-      'ES': { name: 'Español', flag: '🇪🇸', code: 'es' },
-      'CS': { name: 'Čeština', flag: '🇨🇿', code: 'cs' },
-      'PL': { name: 'Polski', flag: '🇵🇱', code: 'pl' },
-      'LT': { name: 'Lietuvių', flag: '🇱🇹', code: 'lt' },
-      'LV': { name: 'Latviešu', flag: '🇱🇻', code: 'lv' },
-      'NO': { name: 'Norsk', flag: '🇳🇴', code: 'no' }
+      'EN': { name: 'English', flag: '🇬🇧', code: 'en' },
+      'RU': { name: 'Russian', flag: '🇷🇺', code: 'ru' },
     };
 
     console.log('🌍 Unified Translation Service готов с', Object.keys(this.supportedLanguages).length, 'языками');

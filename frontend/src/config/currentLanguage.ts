@@ -1,3 +1,2 @@
-// ГЛАВНЫЙ ФАЙЛ ДЛЯ ПЕРЕКЛЮЧЕНИЯ ЯЗЫКА
-import { polishConfig } from './languages/polish';
-export const currentLanguageConfig = polishConfig;
+import { englishConfig } from './languages/english';
+export const currentLanguageConfig = englishConfig;

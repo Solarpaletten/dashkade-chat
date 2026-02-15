@@ -26,14 +26,6 @@ class TextToSpeechService {
     this.supportedLanguages = {
       'en': { name: 'English', voice: 'alloy' },
       'ru': { name: 'Russian', voice: 'shimmer' },
-      'de': { name: 'German', voice: 'onyx' },
-      'es': { name: 'Spanish', voice: 'nova' },
-      'cs': { name: 'Czech', voice: 'fable' },
-      'pl': { name: 'Polish', voice: 'echo' },
-      'lt': { name: 'Lithuanian', voice: 'alloy' },
-      'lv': { name: 'Latvian', voice: 'alloy' },
-      'no': { name: 'Norwegian', voice: 'onyx' },
-      'fr': { name: 'French', voice: 'nova' }
     };
 
     // Available OpenAI voices
