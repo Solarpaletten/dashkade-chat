@@ -205,18 +205,18 @@ export const useTranslator = () => {
 
       if (translationMode === 'auto') {
         const detected = await detectLanguage(text);
-        setRecognitionLang(detected === 'RU' ? 'ru-RU' : 'pl-PL');
+        setRecognitionLang(detected === 'RU' ? 'ru-RU' : 'en-US');
 
         if (detected === 'RU') {
           fromLang = 'RU';
-          toLang = 'PL';
+          toLang = 'EN';
         } else {
           fromLang = detected;
           toLang = 'RU';
         }
       } else {
-        fromLang = currentRole === 'user' ? 'RU' : 'PL';
-        toLang = currentRole === 'user' ? 'PL' : 'RU';
+        fromLang = currentRole === 'user' ? 'RU' : 'EN';
+        toLang = currentRole === 'user' ? 'EN' : 'RU';
       }
 
       const response = await fetch(`${config.aiServer}/translate`, {
@@ -252,7 +252,7 @@ export const useTranslator = () => {
       const targetLangCode = toLang.toLowerCase();
       if ('speechSynthesis' in window && translation) {
         const utterance = new SpeechSynthesisUtterance(translation);
-        utterance.lang = targetLangCode === 'ru' ? 'ru-RU' : 'pl-PL';
+        utterance.lang = targetLangCode === 'ru' ? 'ru-RU' : 'en-US';
         utterance.rate = 0.9;
 
         const speakNow = () => {
@@ -303,7 +303,7 @@ export const useTranslator = () => {
     setStatus(newMode === 'auto' ? '🤖 Auto mode' : '🎯 Manual mode');
 
     const newLang = newMode === 'manual'
-      ? (currentRole === 'user' ? 'ru-RU' : 'pl-PL')
+      ? (currentRole === 'user' ? 'ru-RU' : 'en-US')
       : 'ru-RU';
 
     setRecognitionLang(newLang);
@@ -320,7 +320,7 @@ export const useTranslator = () => {
     if (translationMode === 'manual') {
       setCurrentRole(role);
       if (recognitionRef.current) {
-        recognitionRef.current.lang = role === 'user' ? 'ru-RU' : 'pl-PL';
+        recognitionRef.current.lang = role === 'user' ? 'ru-RU' : 'en-US';
       }
     }
   };
