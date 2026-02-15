@@ -36,3 +36,5 @@ git commit -m "feat: add production environment configs for Render"
 git push origin main
 
 delete cors
+
+git commit -m "dashka-chat"
