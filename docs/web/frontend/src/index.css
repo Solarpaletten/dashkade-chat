@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: #1a1a2e;
+}
+
+#root {
+  height: 100%;
+}
+
+/* Touch-friendly tap areas */
+button {
+  touch-action: manipulation;
+}
+
+/* Smooth transitions */
+.translate-btn {
+  transition: transform 0.1s ease, opacity 0.2s ease;
+}
+.translate-btn:active {
+  transform: scale(0.97);
+}
+
+/* Textarea - no zoom on iOS */
+textarea, input {
+  font-size: 16px !important;
+}

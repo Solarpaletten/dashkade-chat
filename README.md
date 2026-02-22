@@ -1,42 +1,54 @@
-# 🎤 DashkaVoicePL - Real-time Translation Platform
+# 🇩🇪 Dashka German Translator — Production v1.0.0
 
-AI-powered voice translator with manual and auto-detect modes.
+DE-only production wrapper for Dashka Chat API.
 
-## Features
-- 🎯 Manual translation mode (RU↔FR)
-- 🤖 Auto language detection (10 languages)
-- 🔊 Text-to-Speech (OpenAI TTS)
-- 🎤 Speech recognition (Whisper)
-- ⚡ Real-time WebSocket sync
-- 📱 Responsive UI (Desktop/Tablet/Mobile)
+## 🌐 Live URLs
 
-## Tech Stack
-**Backend:** Node.js, Express, WebSocket, OpenAI API
-**Frontend:** React, TypeScript, Vite, Tailwind CSS
+Frontend (Static Site)
+https://dashka-chat.onrender.com
 
-## Setup
-\`\`\`bash
-# Backend
-cd backend
-npm install
-npm run dev
+Backend (Web Service)
+https://api-dashka-chat.onrender.com
 
-# Frontend
-cd frontend
-npm install
-npm run dev
-\`\`\`
+---
 
-See [API_REFERENCE.md](docs/API_REFERENCE.md) for details.
+## 🏗 Architecture
 
-const leftPanelRef = useRef<HTMLTextAreaElement>(null);
+Browser  
+↓  
+Static Site (web/)  
+↓  
+REST API (backend/)  
+↓  
+OpenAI
 
-git add backend/.env.production frontend/.env.production
-git commit -m "feat: add production environment configs for Render"
-git push origin main
+---
 
-delete cors
+## 📦 Project Structure
 
-git add .
-git commit -m "dashka-chat"
-git push  
+backend/ → Node.js API (Render Web Service)  
+web/ → Vite + React DE-only wrapper (Render Static Site)
+
+---
+
+## 🎯 Product Scope (v1.0.0)
+
+- German-only target language
+- Auto-detect source language
+- Text translation
+- Voice translation
+- No WebSocket
+- Unified state model (Web / iOS / Android)
+
+---
+
+## 🚀 Deployment (Render)
+
+### Static Site
+Root: web  
+Build: npm install && npm run build  
+Publish: dist  
+
+### Web Service
+Root: backend  
+Start: node src/server.js
