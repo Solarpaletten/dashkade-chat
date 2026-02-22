@@ -1,0 +1,24 @@
+fix: v1.0.1 stabilization (voice contract + prod hardening)
+
+P0 FIX: /voice-translate response → snake_case (original_text, translated_text)
+  - web/iOS/Android voice path now correctly receives translated text
+  - camelCase aliases kept for backward compat
+
+P1 SEC: CORS origin '*' blocked in production
+  - defaults to https://dashka-chat.onrender.com if CORS_ORIGIN not set
+  - supports comma-separated list of origins
+
+P2 REL: UnifiedTranslationService fails fast if OPENAI_API_KEY missing
+  - throws HTTP 503 instead of cryptic OpenAI SDK error
+
+P3 HYG: console.log → winston logger in whisperService + unifiedTranslationService
+  - no user text content in logs
+  - only metadata: lang, char count, timing, status
+
+P4 OPT: /health returns minimal JSON for Render healthcheck
+  - {"status":"ok","version":"1.0.1","timestamp":"..."}
+  - extended info available at /health/details
+
+P5 OPS: render.yaml updated with Static Site entry + CORS_ORIGIN
+  - README updated with deployment guide and env vars table
+  - .env.example sanitized (REPLACE_ME only)

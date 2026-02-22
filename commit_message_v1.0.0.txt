@@ -1,7 +1,0 @@
-feat: DE-only production wrapper v1.0.0
-
-- Removed legacy multi-language frontend
-- Introduced German-only wrapper (web/)
-- Unified state model with mobile apps
-- Production split: static frontend + API backend
-- Clean Render architecture
