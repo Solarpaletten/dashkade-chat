@@ -159,3 +159,21 @@ git commit -F patch-v1.0.1/COMMIT_MESSAGE_super.txt
 git tag v1.0.1-de-stable_super
 
 git push origin main --tags
+
+v1.2/
+├── COMMIT_MESSAGE.txt
+├── MOBILE_PORTING.md
+└── web/
+    ├── tailwind.config.js
+    └── src/
+        ├── core/
+        │   ├── network/
+        │   │   └── apiClient.ts
+        │   └── types/
+        │       └── translator.types.ts
+        └── feature/
+            └── german/
+                ├── useGermanTranslator.ts
+                ├── GermanScreen.tsx
+                ├── DirectionToggle.tsx
+                └── ConversationMode.tsx

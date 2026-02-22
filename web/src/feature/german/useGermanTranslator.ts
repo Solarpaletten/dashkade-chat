@@ -1,28 +1,65 @@
+// feature/german/useGermanTranslator.ts
+// v1.2 — Conversation Mode Upgrade
+//
+// Changes vs v1.1:
+//   + Direction toggle (RU_DE | DE_RU)
+//   + MicState machine (Idle → Recording → Processing)
+//   + Debounced partial translation (1500ms)
+//   + No auto-stop (silence / timeout removed)
+//   + conversationMode toggle
+//   - No console.log
+
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { apiClient } from '../../core/network/apiClient'
-import type { GermanTranslatorState } from '../../core/types/translator.types'
+import {
+  type TranslatorState,
+  type Direction,
+  type MicState,
+  DIRECTION_CONFIG,
+} from '../../core/types/translator.types'
+
+// ── Debounce helper ───────────────────────────────────────────
+
+function useDebounce<T extends (...args: Parameters<T>) => void>(
+  fn: T,
+  delay: number
+): T {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  return useCallback((...args: Parameters<T>) => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => fn(...args), delay)
+  }, [fn, delay]) as T
+}
+
+// ── Initial state ─────────────────────────────────────────────
+
+const INITIAL: TranslatorState = {
+  inputText:        '',
+  translatedText:   '',
+  isTranslating:    false,
+  backendAwake:     false,
+  error:            null,
+  direction:        'RU_DE',
+  micState:         'Idle',
+  conversationMode: false,
+}
+
+// ── Hook ──────────────────────────────────────────────────────
 
 export function useGermanTranslator() {
-  const [state, setState] = useState<GermanTranslatorState>({
-    inputText: '',
-    translatedText: '',
-    isTranslating: false,
-    isRecording: false,
-    backendAwake: false,
-    error: null
-  })
+  const [state, setState] = useState<TranslatorState>(INITIAL)
 
-  const recognitionRef = useRef<SpeechRecognition | null>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
-  const audioChunksRef = useRef<Blob[]>([])
+  const recognitionRef  = useRef<SpeechRecognition | null>(null)
+  const mediaRecRef     = useRef<MediaRecorder | null>(null)
+  const audioChunksRef  = useRef<Blob[]>([])
 
-  // Auto wake-up on mount
-  useEffect(() => {
-    wakeUp()
-  }, [])
+  const set = useCallback((partial: Partial<TranslatorState>) =>
+    setState(prev => ({ ...prev, ...partial })), [])
 
-  const set = (partial: Partial<GermanTranslatorState>) =>
-    setState(prev => ({ ...prev, ...partial }))
+  // ── Auto wake-up ──────────────────────────────────────────
+  useEffect(() => { wakeUp() }, [])
+
+  // ── Wake Up ───────────────────────────────────────────────
 
   const wakeUp = useCallback(async () => {
     set({ error: null })
@@ -30,100 +67,183 @@ export function useGermanTranslator() {
       await apiClient.wakeUp()
       set({ backendAwake: true })
     } catch {
-      set({ backendAwake: false, error: 'Backend недоступен. Нажмите ☀️ для повтора.' })
+      set({ backendAwake: false, error: 'Backend недоступен. Нажмите ☀️' })
     }
   }, [])
 
-  const translate = useCallback(async () => {
-    if (!state.inputText.trim()) return
+  // ── Translate (text) ──────────────────────────────────────
+
+  const translate = useCallback(async (textOverride?: string) => {
+    const text = (textOverride ?? state.inputText).trim()
+    if (!text) return
+
+    const { targetLang } = DIRECTION_CONFIG[state.direction]
+
     set({ isTranslating: true, error: null })
     try {
-      const res = await apiClient.translate(state.inputText)
+      const res = await apiClient.translate(text, targetLang)
       set({ translatedText: res.translated_text, backendAwake: true })
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Ошибка перевода'
-      set({ error: msg })
+    } catch (e) {
+      set({ error: e instanceof Error ? e.message : 'Ошибка перевода' })
     } finally {
       set({ isTranslating: false })
     }
-  }, [state.inputText])
+  }, [state.inputText, state.direction])
 
-  const toggleRecording = useCallback(async () => {
-    if (state.isRecording) {
-      // Stop recording
-      if (mediaRecorderRef.current) {
-        mediaRecorderRef.current.stop()
+  // ── Partial translate (debounced 1500ms) ──────────────────
+  // Called on every interim SpeechRecognition result
+
+  const translatePartial = useCallback(async (text: string) => {
+    if (!text.trim()) return
+    const { targetLang } = DIRECTION_CONFIG[state.direction]
+    try {
+      const res = await apiClient.translate(text, targetLang)
+      set({ translatedText: res.translated_text })
+    } catch {
+      // Silently ignore partial errors — final translate will retry
+    }
+  }, [state.direction])
+
+  const debouncedPartial = useDebounce(translatePartial, 1500)
+
+  // ── Direction Toggle ──────────────────────────────────────
+
+  const toggleDirection = useCallback(() => {
+    set({
+      direction:      state.direction === 'RU_DE' ? 'DE_RU' : 'RU_DE',
+      inputText:      '',
+      translatedText: '',
+      error:          null,
+    })
+  }, [state.direction])
+
+  // ── MicState Machine ──────────────────────────────────────
+  //
+  //  Idle → [toggleMic] → Recording → [toggleMic] → Processing → Idle
+  //
+  //  NO auto-stop. NO silence detection. NO timeout.
+  //  Stop ONLY on manual press.
+
+  const toggleMic = useCallback(async () => {
+    const { micState } = state
+
+    // Recording → Processing
+    if (micState === 'Recording') {
+      recognitionRef.current?.stop()
+      mediaRecRef.current?.stop()
+      set({ micState: 'Processing' })
+      return
+    }
+
+    // Processing — ignore double-tap
+    if (micState === 'Processing') return
+
+    // Idle → Recording
+    const { sourceLang } = DIRECTION_CONFIG[state.direction]
+
+    // Try Web Speech API (Chrome / Safari)
+    const SpeechRecognitionAPI =
+      (window as Window & { SpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition ||
+      (window as Window & { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition
+
+    if (SpeechRecognitionAPI) {
+      const recognition = new SpeechRecognitionAPI()
+      recognition.lang             = sourceLang
+      recognition.continuous       = true   // ← NO auto-stop
+      recognition.interimResults   = true   // ← partial results for streaming
+
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
+        let interim = ''
+        let finalText = ''
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript
+          if (event.results[i].isFinal) {
+            finalText += transcript + ' '
+          } else {
+            interim += transcript
+          }
+        }
+
+        const current = (finalText || interim).trim()
+        if (!current) return
+
+        // Update input immediately (streaming feel)
+        const newInput = state.inputText
+          ? state.inputText + ' ' + current
+          : current
+        set({ inputText: newInput.trim() })
+
+        // Debounced partial translate
+        debouncedPartial(newInput.trim())
       }
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
+
+      // NO onend handler — continuous mode doesn't auto-stop
+      recognition.onerror = (e: Event) => {
+        const err = (e as SpeechRecognitionErrorEvent).error
+        // 'no-speech' is not fatal in continuous mode
+        if (err === 'no-speech') return
+        set({ micState: 'Idle', error: `Ошибка микрофона: ${err}` })
       }
-      set({ isRecording: false })
+
+      recognitionRef.current = recognition
+      recognition.start()
+      set({ micState: 'Recording', error: null })
+
     } else {
-      // Try Web Speech API first (Chrome/Safari)
-      const SpeechRecognition =
-        (window as Window & { SpeechRecognition?: typeof window.SpeechRecognition }).SpeechRecognition ||
-        (window as Window & { webkitSpeechRecognition?: typeof window.SpeechRecognition }).webkitSpeechRecognition
+      // Fallback: MediaRecorder → Whisper (mobile browsers)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        audioChunksRef.current = []
 
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition()
-        recognition.lang = 'ru-RU'
-        recognition.continuous = false
-        recognition.interimResults = false
+        const recorder = new MediaRecorder(stream)
+        recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data)
 
-        recognition.onresult = async (event: SpeechRecognitionEvent) => {
-          const transcript = event.results[0][0].transcript
-          set({ inputText: transcript, isRecording: false })
-          // Auto-translate after voice input
-          set({ isTranslating: true, error: null })
+        recorder.onstop = async () => {
+          const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
+          stream.getTracks().forEach(t => t.stop())
+
+          set({ micState: 'Processing' })
           try {
-            const res = await apiClient.translate(transcript)
-            set({ translatedText: res.translated_text })
-          } catch (e: unknown) {
-            const msg = e instanceof Error ? e.message : 'Ошибка перевода'
-            set({ error: msg })
-          } finally {
-            set({ isTranslating: false })
+            const res = await apiClient.voiceTranslate(blob)
+            set({
+              inputText:      res.original_text,
+              translatedText: res.translated_text,
+              micState:       'Idle',
+            })
+          } catch (e) {
+            set({
+              error:    e instanceof Error ? e.message : 'Ошибка голосового перевода',
+              micState: 'Idle',
+            })
           }
         }
 
-        recognition.onerror = () => set({ isRecording: false, error: 'Ошибка микрофона' })
-        recognition.onend = () => set({ isRecording: false })
+        mediaRecRef.current = recorder
+        recorder.start()
+        set({ micState: 'Recording', error: null })
 
-        recognitionRef.current = recognition
-        recognition.start()
-        set({ isRecording: true })
-      } else {
-        // Fallback: MediaRecorder → Whisper
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-          audioChunksRef.current = []
-          const recorder = new MediaRecorder(stream)
-
-          recorder.ondataavailable = (e) => audioChunksRef.current.push(e.data)
-          recorder.onstop = async () => {
-            const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' })
-            stream.getTracks().forEach(t => t.stop())
-            set({ isRecording: false, isTranslating: true, error: null })
-            try {
-              const res = await apiClient.voiceTranslate(blob)
-              set({ inputText: res.original_text, translatedText: res.translated_text })
-            } catch (e: unknown) {
-              const msg = e instanceof Error ? e.message : 'Ошибка голосового перевода'
-              set({ error: msg })
-            } finally {
-              set({ isTranslating: false })
-            }
-          }
-
-          mediaRecorderRef.current = recorder
-          recorder.start()
-          set({ isRecording: true })
-        } catch {
-          set({ error: 'Нет доступа к микрофону' })
-        }
+      } catch {
+        set({ error: 'Нет доступа к микрофону', micState: 'Idle' })
       }
     }
-  }, [state.isRecording])
+  }, [state, debouncedPartial])
+
+  // Reset Processing → Idle after voice (WebSpeech path)
+  useEffect(() => {
+    if (state.micState === 'Processing' && recognitionRef.current) {
+      // Trigger final translate on full text, then go Idle
+      translate(state.inputText).finally(() => set({ micState: 'Idle' }))
+    }
+  }, [state.micState])
+
+  // ── Conversation Mode ─────────────────────────────────────
+
+  const toggleConversationMode = useCallback(() => {
+    set({ conversationMode: !state.conversationMode })
+  }, [state.conversationMode])
+
+  // ── Helpers ───────────────────────────────────────────────
 
   const clear = useCallback(() => {
     set({ inputText: '', translatedText: '', error: null })
@@ -134,18 +254,23 @@ export function useGermanTranslator() {
   }, [])
 
   const copyResult = useCallback(() => {
-    if (state.translatedText) {
+    if (state.translatedText)
       navigator.clipboard.writeText(state.translatedText).catch(() => {})
-    }
   }, [state.translatedText])
 
   return {
     ...state,
+    // legacy compat
+    isRecording: state.micState === 'Recording',
+    // actions
     wakeUp,
-    translate,
-    toggleRecording,
+    translate: () => translate(),
+    toggleMic,
+    toggleDirection,
+    toggleConversationMode,
     clear,
     setInputText,
-    copyResult
+    copyResult,
+    directionConfig: DIRECTION_CONFIG[state.direction],
   }
 }
